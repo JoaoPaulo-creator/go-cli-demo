@@ -1,0 +1,27 @@
+package utils
+
+import (
+	"encoding/json"
+)
+
+
+
+func BodyParser(body interface{}) []byte {
+  
+  parsedBody, err := json.Marshal(&body)
+  if err != nil {
+   panic("Erro ao parsear body")
+  } 
+
+  return parsedBody
+} 
+
+
+func ResponseBodyParser(response interface{}) []byte {
+  parsedBody, err := json.Unmarshal()
+  if err != nil {
+   panic("Erro no Unmarshal do body")
+  } 
+
+  return parsedBody
+}
