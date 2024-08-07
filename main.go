@@ -5,6 +5,7 @@ import (
 	"goargcli/utils"
 	"log"
 	"math/rand/V2"
+	"sync"
 
 	"github.com/alexflint/go-arg"
 )
@@ -17,7 +18,7 @@ type StoredArguments struct {
 
 type ResponseBody struct {
 	ID   int
-	text string
+	Text string
 }
 
 type ProposalResponseBody struct {
@@ -29,8 +30,8 @@ type ProposalResponseBody struct {
 
 func createSimulation(s string, headers map[string]string) (int, map[string]string) {
 	body := &ResponseBody{
-		rand.IntN(100),
-		s,
+		ID:   rand.IntN(100),
+		Text: s,
 	}
 
 	return body.ID, headers
@@ -50,6 +51,30 @@ func createProposal(id int) []byte {
 	return parsed
 }
 
+func createSimulationAsync(s string, headers map[string]string, wg *sync.WaitGroup, result chan<- int) {
+	defer wg.Done()
+	body := &ResponseBody{
+		ID:   rand.IntN(100),
+		Text: s,
+	}
+
+	result <- body.ID
+}
+
+func createProposalAsync(id int, wg *sync.WaitGroup, result chan<- []byte) {
+	defer wg.Done()
+	log.Println("Recebendo id da simulação async: ", id)
+	body := &ProposalResponseBody{
+		ID:           rand.IntN(128937),
+		SimulationId: id,
+		Text:         "Texto qualquer",
+		Amount:       rand.Float64(),
+	}
+
+	parsed := utils.BodyParser(body)
+	result <- parsed
+}
+
 var id int
 var res []byte
 
@@ -60,6 +85,7 @@ func main() {
 	log.Println(args)
 
 	for {
+
 		if &args.Simulation != nil {
 			log.Println("Criando simulação")
 			m := make(map[string]string)
@@ -80,12 +106,42 @@ func main() {
 		}
 
 		if args.ParseResonse {
-      var t ProposalResponseBody
-      parsedResponse := utils.ResponseBodyParser(res, t)
-      log.Println("Resposta da proposta: ", string(parsedResponse))
+			var t ProposalResponseBody
+			parsedResponse := utils.ResponseBodyParser(res, t)
+			log.Println("Resposta da proposta: ", string(parsedResponse))
 		}
 
+		if args.Async != nil && args.Async.Run {
+			responseChannel1 := make(chan int)
+			responseChannel2 := make(chan []byte)
 
-    break
+			var wg sync.WaitGroup
+			wg.Add(2)
+
+			go func() {
+				defer close(responseChannel1)
+				log.Println("Criando simulação async")
+				m := make(map[string]string)
+				m["teste"] = "valor"
+
+				createSimulationAsync("Simuation teste", m, &wg, responseChannel1)
+				log.Println("Id da simulação async: ", <-responseChannel1)
+			}()
+
+      id = <- responseChannel1
+
+			// segunda função
+			go func() {
+				log.Println("Criando proposta async")
+				createProposalAsync(id, &wg, responseChannel2)
+			}()
+
+			res = <-responseChannel2
+			log.Println("Resposta da proposta async: ", string(res))
+
+      wg.Wait()
+		}
+
+		break
 	}
 }
