@@ -128,18 +128,27 @@ func main() {
 				log.Println("Id da simulação async: ", <-responseChannel1)
 			}()
 
-      id = <- responseChannel1
+			/*
+				Notei que, quando o channel fica dentro da função assincrona,
+				ela até executa, porém não finaliza a execução
+			*/
+			id = <-responseChannel1
 
 			// segunda função
 			go func() {
+				defer close(responseChannel2)
 				log.Println("Criando proposta async")
 				createProposalAsync(id, &wg, responseChannel2)
 			}()
 
+			/*
+				Sendo assim, ambos os canais ficarão fora da func async, pois dessa forma consigo executa-las
+				e finaliza-las conforme o esperado
+			*/
 			res = <-responseChannel2
 			log.Println("Resposta da proposta async: ", string(res))
 
-      wg.Wait()
+			wg.Wait()
 		}
 
 		break
